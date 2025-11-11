@@ -39,48 +39,51 @@ function calculateRank({
   prs,
   issues,
   reviews,
-  // eslint-disable-next-line no-unused-vars
-  repos, // unused
+  repos,
   stars,
   followers,
 }) {
-  const COMMITS_MEDIAN = all_commits ? 1000 : 250,
-    COMMITS_WEIGHT = 2;
-  const PRS_MEDIAN = 50,
-    PRS_WEIGHT = 3;
-  const ISSUES_MEDIAN = 25,
-    ISSUES_WEIGHT = 1;
+  // 🧮 Adjusted medians and weights for a natural but generous ranking
+  const COMMITS_MEDIAN = all_commits ? 600 : 200,
+        COMMITS_WEIGHT = 3;
+  const PRS_MEDIAN = 40,
+        PRS_WEIGHT = 3;
+  const ISSUES_MEDIAN = 20,
+        ISSUES_WEIGHT = 1;
   const REVIEWS_MEDIAN = 2,
-    REVIEWS_WEIGHT = 1;
-  const STARS_MEDIAN = 50,
-    STARS_WEIGHT = 4;
-  const FOLLOWERS_MEDIAN = 10,
-    FOLLOWERS_WEIGHT = 1;
+        REVIEWS_WEIGHT = 1;
+  const FOLLOWERS_MEDIAN = 8,
+        FOLLOWERS_WEIGHT = 1;
+  const STARS_WEIGHT = 0; // ⭐ stars ignored completely
 
   const TOTAL_WEIGHT =
     COMMITS_WEIGHT +
     PRS_WEIGHT +
     ISSUES_WEIGHT +
     REVIEWS_WEIGHT +
-    STARS_WEIGHT +
-    FOLLOWERS_WEIGHT;
+    FOLLOWERS_WEIGHT; // stars excluded
 
   const THRESHOLDS = [1, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100];
   const LEVELS = ["S", "A+", "A", "A-", "B+", "B", "B-", "C+", "C"];
 
+  // 📈 Calculate weighted rank (stars skipped)
   const rank =
     1 -
-    (COMMITS_WEIGHT * exponential_cdf(commits / COMMITS_MEDIAN) +
-      PRS_WEIGHT * exponential_cdf(prs / PRS_MEDIAN) +
-      ISSUES_WEIGHT * exponential_cdf(issues / ISSUES_MEDIAN) +
-      REVIEWS_WEIGHT * exponential_cdf(reviews / REVIEWS_MEDIAN) +
-      STARS_WEIGHT * log_normal_cdf(stars / STARS_MEDIAN) +
-      FOLLOWERS_WEIGHT * log_normal_cdf(followers / FOLLOWERS_MEDIAN)) /
+    (COMMITS_WEIGHT * (1 - 2 ** -(commits / COMMITS_MEDIAN)) +
+      PRS_WEIGHT * (1 - 2 ** -(prs / PRS_MEDIAN)) +
+      ISSUES_WEIGHT * (1 - 2 ** -(issues / ISSUES_MEDIAN)) +
+      REVIEWS_WEIGHT * (1 - 2 ** -(reviews / REVIEWS_MEDIAN)) +
+      FOLLOWERS_WEIGHT * (followers / (followers + FOLLOWERS_MEDIAN))) /
       TOTAL_WEIGHT;
 
-  const level = LEVELS[THRESHOLDS.findIndex((t) => rank * 100 <= t)];
+  let percentile = rank * 100;
 
-  return { level, percentile: rank * 100 };
+  // 🚫 Never drop below A-
+  if (percentile > 37.5) percentile = 37.5;
+
+  const level = LEVELS[THRESHOLDS.findIndex((t) => percentile <= t)];
+
+  return { level, percentile };
 }
 
 export { calculateRank };
